@@ -3,9 +3,137 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Sign-In Form</title>
+    <link rel="stylesheet" href="https://unpkg.com/normalize.css">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        #signedInContent {
+            display: none;
+        }
+    </style>
 </head>
 <body>
-    Hello
+    <form id="signinForm">
+        <label for="login">Username or Email:</label>
+        <input id="login" name="login" type="text" required>
+        <label for="password">Password:</label>
+        <input id="password" name="password" type="password" required>
+        <button type="submit">Sign in</button>
+    </form>
+
+    <div id="signedInContent">
+        <h1>Welcome!</h1>
+        <p>You are now signed in.</p>
+        <pre id="graphqlResponse"></pre>
+    </div>
+
+
+    <div class="container">
+
+    </div>
+
+    <script>
+        let JWT = "";
+
+        const info = {
+            username: "",
+            email: "",
+            auditRatioValue: ""
+        }
+
+        const queries = {
+            auditQ :`query auditsQuery {
+    audit(order_by: { endAt: desc }) {
+      group {
+        path
+        status
+        captainLogin
+      }
+      auditorId
+      auditorLogin
+      endAt
+      grade
+      updatedAt
+      createdAt
+      auditedAt
+      auditor {
+        id
+      }
+    }
+  }
+`
+        }
+
+        document.getElementById('signinForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const username = document.getElementById('login').value;
+            const password = document.getElementById('password').value;
+
+            // Encode credentials in Base64
+            const credentials = btoa(`${username}:${password}`);
+
+            try {
+                const response = await fetch('https://learn.reboot01.com/api/auth/signin', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Basic ${credentials}` // Basic Auth header
+                    },
+                    body: JSON.stringify({}) // Body can be adjusted based on API requirements
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Sign-in successful:', data);
+
+                    // Assuming JWT is directly available in data.token
+                    JWT = data; // Adjust according to the actual JWT key in your response
+                    
+                    // Hide the sign-in form and show the signed-in content
+                    document.getElementById('signinForm').style.display = 'none';
+                    document.getElementById('signedInContent').style.display = 'block';
+
+                    // Fetch data after sign-in
+                    const result = await queryData(queries.auditQ);
+                    document.getElementById('graphqlResponse').textContent = JSON.stringify(result, null, 2);
+                } else {
+                    const errorData = await response.json();
+                    console.error('Sign-in failed:', errorData.message || response.statusText);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+
+        async function queryData(query) {
+            try {
+                const response = await fetch('https://learn.reboot01.com/api/graphql-engine/v1/graphql', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${JWT}`
+                    },
+                    body: JSON.stringify({ query })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('GraphQL response:', result);
+                    return result; // Return the result to be used by the caller
+                } else {
+                    const errorData = await response.json();
+                    console.error('GraphQL query failed:', errorData.message || response.statusText);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+
+        function basicInformationExtractor(data){
+
+        }
+    </script>
 </body>
 </html>
