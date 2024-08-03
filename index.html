@@ -5,32 +5,52 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign-In Form</title>
     <link rel="stylesheet" href="https://unpkg.com/normalize.css">
-    <link rel="stylesheet" href="style.css">
-    <style>
-        #signedInContent {
-            display: none;
-        }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <form id="signinForm">
-        <label for="login">Username or Email:</label>
-        <input id="login" name="login" type="text" required>
-        <label for="password">Password:</label>
-        <input id="password" name="password" type="password" required>
-        <button type="submit">Sign in</button>
-    </form>
 
-    <div id="signedInContent">
-        <h1>Welcome!</h1>
-        <p>You are now signed in.</p>
-        <pre id="graphqlResponse"></pre>
-    </div>
-
+    <header>Please trust me and use your reboot credentials thank you</header>
 
     <div class="container">
+        <main>content
+            <!-- login page -->
+            <form id="signinForm">
+                <label for="login">Username or Email:</label>
+                <input id="login" name="login" type="text" required>
+                <label for="password">Password:</label>
+                <input id="password" name="password" type="password" required>
+                <button type="submit">Sign in</button>
+            </form>
 
+            <!-- main content -->
+           <div class="grid" id="signedInContent">
+                <div class="section1">
+                    <div >
+                        <h1>Welcome!</h1>
+                        <p>You are now signed in.</p>
+                        <!-- <pre id="graphqlResponse"></pre> -->
+                    </div>
+               </div>
+                <div class="section2">                    <div >
+                    <h1>Welcome!</h1>
+                    <p>You are now signed in.</p>
+                    <!-- <pre id="graphqlResponse"></pre> -->
+                </div></div>
+                <div class="section3">                    <div >
+                    <h1>Welcome!</h1>
+                    <p>You are now signed in.</p>
+                    <!-- <pre id="graphqlResponse"></pre> -->
+                </div></div>
+                <div class="section4">                    <div >
+                    <h1>Welcome!</h1>
+                    <p>You are now signed in.</p>
+                    <!-- <pre id="graphqlResponse"></pre> -->
+                </div></div>
+            
+           </div>
+        </main>
     </div>
+    <footer>scree</footer>
 
     <script>
         let JWT = "";
@@ -64,6 +84,9 @@
 `
         }
 
+
+        headerMessage = "Yusuf, You shouldn't share your password with strangers."
+
         document.getElementById('signinForm').addEventListener('submit', async function(event) {
             event.preventDefault();
 
@@ -93,6 +116,7 @@
                     // Hide the sign-in form and show the signed-in content
                     document.getElementById('signinForm').style.display = 'none';
                     document.getElementById('signedInContent').style.display = 'block';
+                    document.querySelector('header').innerText = headerMessage
 
                     // Fetch data after sign-in
                     const result = await queryData(queries.auditQ);
@@ -131,9 +155,6 @@
         }
 
 
-        function basicInformationExtractor(data){
-
-        }
     </script>
 </body>
 </html>
