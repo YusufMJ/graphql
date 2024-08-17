@@ -103,15 +103,18 @@ main {
   box-shadow: 0 10px 20px rgba(255, 215, 0, 0.05);
   position: relative;
   overflow: hidden;
+  background-color: #1a1a1a;  /* Very dark gray, almost black */
+  color: #ffffff;  /* White text for other elements */
 }
 
 .title {
   font-size: 1.4em;
   font-weight: 600;
   margin-bottom: 15px;
-  color: var(--accent);
-  border-bottom: 2px solid var(--accent);
+  color: #ffd700;  /* Gold color for the title */
+  border-bottom: 2px solid #ffd700;  /* Gold underline */
   padding-bottom: 10px;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
 }
 
 .namelvlrank {
@@ -189,7 +192,7 @@ footer {
 
 /* D3.js chart styles */
 .bar-background {
-  fill: url(#background-gradient);
+  fill: url(#bg-gradient);
 }
 
 .bar.up {
@@ -200,16 +203,18 @@ footer {
   fill: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;
+  filter: url(#glow);
 }
 
 .label.up {
-  fill: var(--accent);
+  fill: var(--text-primary);
 }
 
 .ratio-text {
-  fill: var(--text-primary);
+  fill: var(--text-secondary);
   font-size: 14px;
   font-weight: 600;
+  filter: url(#glow);
 }
 
 /* New styles for the timeline section */
@@ -252,10 +257,6 @@ footer {
   padding-left: 20px;
 }
 
-.info li {
-  margin-bottom: 10px;
-}
-
 .info li strong {
   color: var(--accent);
 }
@@ -282,24 +283,17 @@ footer {
   transition: max-height 0.5s ease-in;
 }
 
-/* Chart container styles */
-.chart-container {
-  background-color: #1a1a1a;
-  border-radius: 10px;
-  padding: 20px;
-  margin-top: 20px;
+/* Section title styles */
+.section-title {
+  text-align: left;
+  padding: 10px;
+  font-size: 18px;
+  font-weight: bold;
+  color: var(--accent);
+  margin-bottom: 10px;
 }
 
-.gridCircle {
-  fill: none;
-  stroke: #CDCDCD;
-}
-
-.axis {
-  stroke: #CDCDCD;
-  stroke-width: 0.5px;
-}
-
-.legend {
-  fill: #CCCCCC;
+.section-title-underlined {
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 5px;
 }

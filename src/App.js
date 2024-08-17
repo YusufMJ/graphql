@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as d3 from 'd3';
 import './App.css';
 
@@ -245,7 +245,7 @@ function App() {
         const data = await response.json();
         setJwt(data);
         setIsSignedIn(true);
-        setHeaderMessage(", You shouldn't share your password with strangers.");
+        setHeaderMessage("You shouldn't share your password with strangers.");
 
         const result = await queryData(queries.basicInformation);
         setUserInfo({
@@ -262,7 +262,7 @@ function App() {
     }
   };
 
-  const queryData = async (query, variables = {}) => {
+  const queryData = useCallback(async (query, variables = {}) => {
     try {
       const response = await fetch('https://learn.reboot01.com/api/graphql-engine/v1/graphql', {
         method: 'POST',
@@ -284,16 +284,16 @@ function App() {
     } catch (error) {
       console.error('Error:', error);
     }
-  };
+  }, [jwt]);
 
-  const fetchUserStats = async () => {
+  const fetchUserStats = useCallback(async () => {
     const result = await queryData(queries.basicInformation);
     if (result && result.data && result.data.user && result.data.user[0]) {
       setUserStats(result.data.user[0]);
     }
-  };
+  }, [queryData, queries.basicInformation]);
 
-  const fetchSkillsData = async () => {
+  const fetchSkillsData = useCallback(async () => {
     const result = await queryData(queries.skillsDistribution);
     console.log('Raw query result:', result);
     
@@ -315,9 +315,9 @@ function App() {
       console.log('No transaction data found in the query result');
       setSkillsData([]);
     }
-  };
+  }, [queryData]);
 
-  const fetchTimelineData = async () => {
+  const fetchTimelineData = useCallback(async () => {
     const result = await queryData(queries.timelineGraph);
     if (result && result.data && result.data.user && result.data.user[0]) {
       const processedData = result.data.user[0].timeline.map(item => ({
@@ -327,9 +327,9 @@ function App() {
       })).sort((a, b) => a.date - b.date);
       setTimelineData(processedData);
     }
-  };
+  }, [queryData]);
 
-  const fetchUserData = async () => {
+  const fetchUserData = useCallback(async () => {
     try {
       // Fetch user info first
       const infoResult = await queryData(queries.userInfo);
@@ -401,7 +401,7 @@ function App() {
     } catch (error) {
       console.error('Error fetching user data:', error);
     }
-  };
+  }, [queryData, queries.userInfo, queries.userLevel, queries.usersAboveInAllReboot, queries.usersAboveInCohort, queries.userXP, queries.leadershipCount]);
 
   const fetchUsersAbove = async (inCohort = false) => {
     const query = inCohort ? queries.usersAboveInCohort : queries.usersAboveInAllReboot;
@@ -472,7 +472,7 @@ function App() {
       fetchTimelineData();
       fetchUserData();
     }
-  }, [isSignedIn]);
+  }, [isSignedIn, fetchUserStats, fetchSkillsData, fetchTimelineData, fetchUserData]);
 
   useEffect(() => {
     if (userStats) {
@@ -506,7 +506,11 @@ function App() {
 
     const margin = { top: 20, right: 20, bottom: 30, left: 40 };
     const width = 300 - margin.left - margin.right;
-    const height = 60 - margin.top - margin.bottom;
+    const height = 100 - margin.top - margin.bottom; // Increased height
+
+    // Update SVG size
+    svg.attr("width", width + margin.left + margin.right)
+       .attr("height", height + margin.top + margin.bottom);
 
     const g = svg.append("g")
       .attr("transform", `translate(${margin.left},${margin.top})`);
@@ -516,21 +520,34 @@ function App() {
 
     const defs = svg.append("defs");
 
-    const backgroundGradient = defs.append("linearGradient")
-      .attr("id", "background-gradient")
+    // Background gradient
+    const bgGradient = defs.append("linearGradient")
+      .attr("id", "bg-gradient")
       .attr("x1", "0%")
       .attr("y1", "0%")
       .attr("x2", "100%")
-      .attr("y2", "0%");
+      .attr("y2", "100%");
 
-    backgroundGradient.append("stop")
+    bgGradient.append("stop")
       .attr("offset", "0%")
-      .attr("stop-color", "#f3f4f6");
+      .attr("stop-color", "#2a2a2a");
 
-    backgroundGradient.append("stop")
+    bgGradient.append("stop")
       .attr("offset", "100%")
-      .attr("stop-color", "#e5e7eb");
+      .attr("stop-color", "#1a1a1a");
 
+    // Background rectangle
+    g.append("rect")
+      .attr("class", "bar-background")
+      .attr("x", 0)
+      .attr("y", 0)
+      .attr("width", width)
+      .attr("height", height)
+      .attr("rx", 10)
+      .attr("ry", 10)
+      .attr("fill", "url(#bg-gradient)");
+
+    // "Up" bar gradient
     const upGradient = defs.append("linearGradient")
       .attr("id", "up-gradient")
       .attr("x1", "0%")
@@ -540,37 +557,45 @@ function App() {
 
     upGradient.append("stop")
       .attr("offset", "0%")
-      .attr("stop-color", "#34d399");
+      .attr("stop-color", "#000000");
 
     upGradient.append("stop")
       .attr("offset", "100%")
-      .attr("stop-color", "#10b981");
+      .attr("stop-color", "#333333");
 
-    g.append("rect")
-      .attr("class", "bar-background")
-      .attr("x", 0)
-      .attr("y", 0)
-      .attr("width", width)
-      .attr("height", height)
-      .attr("rx", 5)
-      .attr("ry", 5)
-      .attr("fill", "url(#background-gradient)");
-
+    // "Up" bar
     g.append("rect")
       .attr("class", "bar up")
       .attr("x", 0)
       .attr("y", 0)
       .attr("height", height)
-      .attr("rx", 5)
-      .attr("ry", 5)
+      .attr("rx", 10)
+      .attr("ry", 10)
       .attr("fill", "url(#up-gradient)")
       .attr("width", width * upRatio);
 
+    // Glow effect
+    const glow = defs.append("filter")
+      .attr("id", "glow");
+
+    glow.append("feGaussianBlur")
+      .attr("stdDeviation", "3")
+      .attr("result", "coloredBlur");
+
+    const feMerge = glow.append("feMerge");
+    feMerge.append("feMergeNode")
+      .attr("in", "coloredBlur");
+    feMerge.append("feMergeNode")
+      .attr("in", "SourceGraphic");
+
+    // Text elements
     g.append("text")
       .attr("class", "label up")
       .attr("x", 10)
       .attr("y", height / 2)
       .attr("dy", "0.35em")
+      .attr("fill", "#00ff00")
+      .attr("filter", "url(#glow)")
       .text(`Up: ${userStats.totalUp}`);
 
     g.append("text")
@@ -579,6 +604,8 @@ function App() {
       .attr("y", height / 2)
       .attr("dy", "0.35em")
       .attr("text-anchor", "end")
+      .attr("fill", "#ffd700")
+      .attr("filter", "url(#glow)")
       .text(`Down: ${userStats.totalDown}`);
 
     svg.append("text")
@@ -586,6 +613,8 @@ function App() {
       .attr("x", width / 2 + margin.left)
       .attr("y", height + margin.top + 25)
       .attr("text-anchor", "middle")
+      .attr("fill", "#ffd700")
+      .attr("filter", "url(#glow)")
       .text(`Audit Ratio: ${userStats.auditRatio.toFixed(2)}`);
   };
 
@@ -602,7 +631,7 @@ function App() {
        .attr("viewBox", `0 0 ${containerWidth} ${containerHeight}`)
        .attr("preserveAspectRatio", "xMidYMid meet");
 
-    const margin = { top: 70, right: 50, bottom: 50, left: 50 }; // Increased top margin
+    const margin = { top: 40, right: 50, bottom: 50, left: 50 };
     const width = containerWidth - margin.left - margin.right;
     const height = containerHeight - margin.top - margin.bottom;
     const radius = Math.min(width, height) / 2;
@@ -678,14 +707,13 @@ function App() {
       .text(d => d.skill)
       .style("fill", "#CCCCCC");
 
-    // Add a title with more space below
+    // Add a title
     svg.append("text")
       .attr("x", containerWidth / 2)
-      .attr("y", 30)
+      .attr("y", 20)
       .attr("text-anchor", "middle")
       .style("font-size", "16px")
       .style("fill", "#FFFFFF")
-      .text("Technologies");
   };
 
   const createTimelineChart = () => {
@@ -838,7 +866,8 @@ function App() {
                       {showTeamLeaderProjects ? 'Hide projects' : 'Which projects?'}
                     </button>
                     {showTeamLeaderProjects && (
-                      <ul className={showTeamLeaderProjects ? 'show' : ''}>
+                      <div className="users-list-container">
+                      <ul className={showTeamLeaderProjects ? 'show users-list' : 'users-list'}>
                         {teamLeaderProjects.map((project, index) => (
                           <li key={index}>
                             <strong>{project.object.name}</strong>
@@ -847,6 +876,7 @@ function App() {
                           </li>
                         ))}
                       </ul>
+                      </div>
                     )}
                   </>
                 )}
@@ -857,8 +887,11 @@ function App() {
               <svg ref={chartRef} width="300" height="100"></svg>
             </div>
             <div className="section">
-              <div className="chart-container">
-                <svg ref={skillsChartRef}></svg>
+              <div className="title">Top 10 Skills</div>
+              <div className="section-content">
+                <div className="chart-container">
+                  <svg ref={skillsChartRef}></svg>
+                </div>
               </div>
             </div>
             <div className="section">
@@ -891,6 +924,9 @@ function App() {
                   </>
                 )}
               </div>
+            </div>
+            <div className="section">
+              <div className="title">Cohort Ranking</div>
               <div className="info">
                 <p>You are in Cohort {getCohortNumber(cohort)}</p>
                 <p>You are top {usersAboveLevelInCohort + 1} in your Reboot01 cohort</p>
@@ -903,11 +939,13 @@ function App() {
                   {showUsersAboveInCohort ? 'Hide users above you in cohort' : 'Want to see who is above you in your cohort?'}
                 </button>
                 {showUsersAboveInCohort && (
-                  <ul className={showUsersAboveInCohort ? 'show' : ''}>
-                    {usersAboveInCohortList.map((user, index) => (
-                      <li key={user.userLogin}>{user.userLogin} - Level {user.level}</li>
-                    ))}
-                  </ul>
+                  <div className="users-list-container">
+                    <ul className={showUsersAboveInCohort ? 'show users-list' : 'users-list'}>
+                      {usersAboveInCohortList.map((user, index) => (
+                        <li key={user.userLogin}>{user.userLogin} - Level {user.level}</li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </div>
             </div>
