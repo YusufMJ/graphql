@@ -1,0 +1,233 @@
+:root {
+  --primary-bg: #000000;
+  --secondary-bg: #333333;
+  --accent: #FFD700;
+  --text-primary: #FFD700;
+  --text-secondary: #CCCCCC;
+  --hover-color: #B8860B;
+}
+
+/* General styles */
+body {
+  font-family: 'Montserrat', sans-serif;
+  background: var(--primary-bg);
+  margin: 0;
+  padding: 0;
+  color: var(--text-primary);
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* Header styles */
+header {
+  background: linear-gradient(135deg, var(--secondary-bg) 0%, var(--primary-bg) 100%);
+  color: var(--accent);
+  padding: 20px;
+  text-align: center;
+  box-shadow: 0 4px 6px rgba(255, 215, 0, 0.1);
+}
+
+/* Main content styles */
+main {
+  background: linear-gradient(135deg, var(--secondary-bg) 0%, var(--primary-bg) 100%);
+  border-radius: 10px;
+  padding: 30px;
+  margin-top: 30px;
+  box-shadow: 0 10px 20px rgba(255, 215, 0, 0.05);
+}
+
+/* Sign-in form styles */
+#signinForm {
+  display: flex;
+  flex-direction: column;
+  max-width: 300px;
+  margin: 0 auto;
+}
+
+#signinForm label {
+  margin-top: 15px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+#signinForm input {
+  padding: 10px;
+  margin-top: 5px;
+  border: 1px solid var(--secondary-bg);
+  border-radius: 5px;
+  background-color: var(--primary-bg);
+  color: var(--text-primary);
+}
+
+#signinForm input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.2);
+}
+
+#signinForm button {
+  margin-top: 20px;
+  padding: 12px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--hover-color) 100%);
+  color: var(--primary-bg);
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+#signinForm button:hover {
+  background: linear-gradient(135deg, var(--hover-color) 0%, var(--accent) 100%);
+  box-shadow: 0 4px 6px rgba(255, 215, 0, 0.1);
+}
+
+/* Signed-in content styles */
+.flexContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 30px;
+}
+
+.section {
+  flex: 1;
+  min-width: 250px;
+  background: linear-gradient(135deg, var(--secondary-bg) 0%, var(--primary-bg) 100%);
+  border-radius: 10px;
+  padding: 25px;
+  box-shadow: 0 10px 20px rgba(255, 215, 0, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.title {
+  font-size: 1.4em;
+  font-weight: 600;
+  margin-bottom: 15px;
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 10px;
+}
+
+.namelvlrank {
+  margin-bottom: 15px;
+}
+
+.name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.info {
+  font-size: 0.95em;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+/* Footer styles */
+footer {
+  text-align: center;
+  padding: 20px;
+  background: linear-gradient(135deg, var(--secondary-bg) 0%, var(--primary-bg) 100%);
+  color: var(--accent);
+  margin-top: 30px;
+  font-size: 0.9em;
+}
+
+/* D3.js chart styles */
+.bar-background {
+  fill: url(#background-gradient);
+}
+
+.bar.up {
+  fill: url(#up-gradient);
+}
+
+.label {
+  fill: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.label.up {
+  fill: var(--accent);
+}
+
+.ratio-text {
+  fill: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* New styles for the timeline section */
+.section svg {
+  background-color: var(--secondary-bg);
+  border-radius: 8px;
+}
+
+.section svg text {
+  fill: var(--text-primary);
+}
+
+.section svg line,
+.section svg path {
+  stroke: var(--text-secondary);
+}
+
+/* New styles for the rankings section */
+.section button {
+  margin-top: 10px;
+  padding: 5px 10px;
+  background-color: var(--accent);
+  color: var(--text-primary);
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.section ul {
+  margin-top: 10px;
+  padding-left: 20px;
+}
+
+.section li {
+  margin-bottom: 5px;
+}
+
+.info ul {
+  margin-top: 10px;
+  padding-left: 20px;
+}
+
+.info li {
+  margin-bottom: 10px;
+}
+
+.info li strong {
+  color: var(--accent);
+}
+
+.info button {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  padding: 5px 10px;
+  background-color: var(--accent);
+  color: var(--text-primary);
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.info ul {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease-out;
+}
+
+.info ul.show {
+  max-height: 1000px;
+  transition: max-height 0.5s ease-in;
+}
