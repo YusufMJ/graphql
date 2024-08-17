@@ -237,7 +237,8 @@ footer {
   margin-top: 10px;
   padding: 5px 10px;
   background-color: var(--accent);
-  color: var(--text-primary);
+  color: var(--primary-bg);
+  font-weight: 600;
   border: none;
   border-radius: 5px;
   cursor: pointer;
@@ -266,7 +267,8 @@ footer {
   margin-bottom: 10px;
   padding: 5px 10px;
   background-color: var(--accent);
-  color: var(--text-primary);
+  color: var(--primary-bg);
+  font-weight: 600;
   border: none;
   border-radius: 5px;
   cursor: pointer;
