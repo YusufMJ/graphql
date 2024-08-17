@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as d3 from 'd3';
 import './App.css';
+import { useSpring, animated } from 'react-spring';
 
 function App() {
   const [jwt, setJwt] = useState("");
@@ -13,8 +14,6 @@ function App() {
   const chartRef = useRef(null);
   const [skillsData, setSkillsData] = useState([]);
   const skillsChartRef = useRef(null);
-  const [timelineData, setTimelineData] = useState([]);
-  const timelineChartRef = useRef(null);
   const [usersAboveLevel, setUsersAboveLevel] = useState(null);
   const [usersAboveLevelInCohort, setUsersAboveLevelInCohort] = useState(null);
   const [cohort, setCohort] = useState(null);
@@ -29,27 +28,9 @@ function App() {
   const [teamLeaderProjects, setTeamLeaderProjects] = useState([]);
   const [showTeamLeaderProjects, setShowTeamLeaderProjects] = useState(false);
   const [mostFrequentLeader, setMostFrequentLeader] = useState(null);
+  const [hoveredBar, setHoveredBar] = useState(null);
 
   const queries = {
-    auditQ: `query auditsQuery {
-      audit(order_by: { endAt: desc }) {
-        group {
-          path
-          status
-          captainLogin
-        }
-        auditorId
-        auditorLogin
-        endAt
-        grade
-        updatedAt
-        createdAt
-        auditedAt
-        auditor {
-          id
-        }
-      }
-    }`,
     basicInformation: `query User1 {
       user {
         auditRatio
@@ -70,20 +51,6 @@ function App() {
         ) {
           amount
           type
-        }
-      }
-    `,
-    timelineGraph: `
-      query timeline_graph {
-        user {
-          login
-          timeline: transactions(
-            where: {type: {_eq: "xp"}, _or: [{attrs: {_eq: {}}}, {attrs: {_has_key: "group"}}], _and: [{path: {_nlike: "%/piscine-js/%"}}, {path: {_nlike: "%/piscine-go/%"}}]}
-          ) {
-            amount
-            createdAt
-            path
-          }
         }
       }
     `,
@@ -319,20 +286,6 @@ function App() {
     }
   }, [queryData, skillsDistribution]); // Add skillsDistribution to the dependency array
 
-  const { timelineGraph } = queries; // Destructure the specific query
-
-  const fetchTimelineData = useCallback(async () => {
-    const result = await queryData(timelineGraph);
-    if (result && result.data && result.data.user && result.data.user[0]) {
-      const processedData = result.data.user[0].timeline.map(item => ({
-        date: new Date(item.createdAt),
-        amount: item.amount,
-        path: item.path
-      })).sort((a, b) => a.date - b.date);
-      setTimelineData(processedData);
-    }
-  }, [queryData, timelineGraph]); // Add timelineGraph to the dependency array
-
   const fetchUserData = useCallback(async () => {
     try {
       // Fetch user info first
@@ -473,10 +426,9 @@ function App() {
     if (isSignedIn) {
       fetchUserStats();
       fetchSkillsData();
-      fetchTimelineData();
       fetchUserData();
     }
-  }, [isSignedIn, fetchUserStats, fetchSkillsData, fetchTimelineData, fetchUserData]);
+  }, [isSignedIn, fetchUserStats, fetchSkillsData, fetchUserData]);
 
   const createBarChart = useCallback(() => {
     const svg = d3.select(chartRef.current);
@@ -594,7 +546,27 @@ function App() {
       .attr("fill", "#ffd700")
       .attr("filter", "url(#glow)")
       .text(`Audit Ratio: ${userStats.auditRatio.toFixed(2)}`);
+
+    // Add interactivity
+    g.selectAll(".bar")
+      .on("mouseover", (event, d) => {
+        setHoveredBar(d === "up" ? "Up" : "Down");
+        d3.select(event.currentTarget).attr("opacity", 0.7);
+      })
+      .on("mouseout", (event) => {
+        setHoveredBar(null);
+        d3.select(event.currentTarget).attr("opacity", 1);
+      })
+      .on("click", (event, d) => {
+        alert(`You clicked on the ${d === "up" ? "Up" : "Down"} bar!`);
+      });
   }, [userStats]); // Add userStats as a dependency
+
+  const barAnimation = useSpring({
+    from: { opacity: 0, transform: 'scale(0.9)' },
+    to: { opacity: 1, transform: 'scale(1)' },
+    config: { duration: 300 },
+  });
 
   useEffect(() => {
     if (userStats) {
@@ -707,66 +679,6 @@ function App() {
     }
   }, [skillsData, createRadarChart]);
 
-  const createTimelineChart = useCallback(() => {
-    const svg = d3.select(timelineChartRef.current);
-    svg.selectAll("*").remove();
-
-    const margin = { top: 20, right: 30, bottom: 30, left: 60 };
-    const width = 600 - margin.left - margin.right;
-    const height = 400 - margin.top - margin.bottom;
-
-    const g = svg.append("g")
-      .attr("transform", `translate(${margin.left},${margin.top})`);
-
-    const x = d3.scaleTime()
-      .domain(d3.extent(timelineData, d => d.date))
-      .range([0, width]);
-
-    const y = d3.scaleLinear()
-      .domain([0, d3.max(timelineData, d => d.amount)])
-      .range([height, 0]);
-
-    const line = d3.line()
-      .x(d => x(d.date))
-      .y(d => y(d.amount));
-
-    g.append("path")
-      .datum(timelineData)
-      .attr("fill", "none")
-      .attr("stroke", "var(--accent)")
-      .attr("stroke-width", 1.5)
-      .attr("d", line);
-
-    g.append("g")
-      .attr("transform", `translate(0,${height})`)
-      .call(d3.axisBottom(x));
-
-    g.append("g")
-      .call(d3.axisLeft(y));
-
-    g.append("text")
-      .attr("x", width / 2)
-      .attr("y", height + margin.bottom)
-      .attr("text-anchor", "middle")
-      .text("Date")
-      .style("fill", "var(--text-primary)");
-
-    g.append("text")
-      .attr("transform", "rotate(-90)")
-      .attr("y", 0 - margin.left)
-      .attr("x", 0 - (height / 2))
-      .attr("dy", "1em")
-      .attr("text-anchor", "middle")
-      .text("XP")
-      .style("fill", "var(--text-primary)");
-  }, [timelineData]);
-
-  useEffect(() => {
-    if (timelineData.length > 0) {
-      createTimelineChart();
-    }
-  }, [timelineData, createTimelineChart]);
-
   useEffect(() => {
     if (isSignedIn && userInfo) {
       fetchLeadershipProjects();
@@ -775,11 +687,13 @@ function App() {
   }, [isSignedIn, userInfo, fetchLeadershipProjects, fetchTeamLeaderData]);
 
   const getRank = (level) => {
-    if (level < 5) return "Novice";
-    if (level < 10) return "Apprentice";
-    if (level < 15) return "Adept";
-    if (level < 20) return "Expert";
-    return "Master";
+    if (level === 0) return "Aspiring developer";
+    if (level <= 10) return "Beginner developer";
+    if (level <= 20) return "Apprentice developer";
+    if (level <= 30) return "Assistant developer";
+    if (level <= 40) return "Basic developer";
+    if (level <= 50) return "Junior developer";
+    return "Senior developer";
   };
 
   const getCohortNumber = (eventId) => {
@@ -888,7 +802,14 @@ function App() {
             </div>
             <div className="section">
               <div className="title">Audit Ratio</div>
-              <svg ref={chartRef} width="300" height="100"></svg>
+              <animated.div style={barAnimation}>
+                <svg ref={chartRef} width="300" height="100"></svg>
+                {hoveredBar && (
+                  <div className="tooltip">
+                    {hoveredBar}: {hoveredBar === "Up" ? userStats.totalUp : userStats.totalDown}
+                  </div>
+                )}
+              </animated.div>
             </div>
             <div className="section">
               <div className="title">Top 10 Skills</div>
@@ -897,10 +818,6 @@ function App() {
                   <svg ref={skillsChartRef}></svg>
                 </div>
               </div>
-            </div>
-            <div className="section">
-              <div className="title">XP Timeline</div>
-              <svg ref={timelineChartRef} width="600" height="400"></svg>
             </div>
             <div className="section">
               <div className="title">Rankings</div>
