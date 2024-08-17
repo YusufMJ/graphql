@@ -293,8 +293,10 @@ function App() {
     }
   }, [queryData, queries.basicInformation]);
 
+  const { skillsDistribution } = queries; // Destructure the specific query
+
   const fetchSkillsData = useCallback(async () => {
-    const result = await queryData(queries.skillsDistribution);
+    const result = await queryData(skillsDistribution);
     console.log('Raw query result:', result);
     
     if (result && result.data && result.data.transaction) {
@@ -315,10 +317,12 @@ function App() {
       console.log('No transaction data found in the query result');
       setSkillsData([]);
     }
-  }, [queryData]);
+  }, [queryData, skillsDistribution]); // Add skillsDistribution to the dependency array
+
+  const { timelineGraph } = queries; // Destructure the specific query
 
   const fetchTimelineData = useCallback(async () => {
-    const result = await queryData(queries.timelineGraph);
+    const result = await queryData(timelineGraph);
     if (result && result.data && result.data.user && result.data.user[0]) {
       const processedData = result.data.user[0].timeline.map(item => ({
         date: new Date(item.createdAt),
@@ -327,7 +331,7 @@ function App() {
       })).sort((a, b) => a.date - b.date);
       setTimelineData(processedData);
     }
-  }, [queryData]);
+  }, [queryData, timelineGraph]); // Add timelineGraph to the dependency array
 
   const fetchUserData = useCallback(async () => {
     try {
@@ -474,11 +478,129 @@ function App() {
     }
   }, [isSignedIn, fetchUserStats, fetchSkillsData, fetchTimelineData, fetchUserData]);
 
+  const createBarChart = useCallback(() => {
+    const svg = d3.select(chartRef.current);
+    svg.selectAll("*").remove();
+
+    const margin = { top: 20, right: 20, bottom: 30, left: 40 };
+    const width = 300 - margin.left - margin.right;
+    const height = 100 - margin.top - margin.bottom; // Increased height
+
+    // Update SVG size
+    svg.attr("width", width + margin.left + margin.right)
+       .attr("height", height + margin.top + margin.bottom);
+
+    const g = svg.append("g")
+      .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    const total = userStats.totalUp + userStats.totalDown;
+    const upRatio = userStats.totalUp / total;
+
+    const defs = svg.append("defs");
+
+    // Background gradient
+    const bgGradient = defs.append("linearGradient")
+      .attr("id", "bg-gradient")
+      .attr("x1", "0%")
+      .attr("y1", "0%")
+      .attr("x2", "100%")
+      .attr("y2", "100%");
+
+    bgGradient.append("stop")
+      .attr("offset", "0%")
+      .attr("stop-color", "#2a2a2a");
+
+    bgGradient.append("stop")
+      .attr("offset", "100%")
+      .attr("stop-color", "#1a1a1a");
+
+    // Background rectangle
+    g.append("rect")
+      .attr("class", "bar-background")
+      .attr("x", 0)
+      .attr("y", 0)
+      .attr("width", width)
+      .attr("height", height)
+      .attr("rx", 10)
+      .attr("ry", 10)
+      .attr("fill", "url(#bg-gradient)");
+
+    // "Up" bar gradient
+    const upGradient = defs.append("linearGradient")
+      .attr("id", "up-gradient")
+      .attr("x1", "0%")
+      .attr("y1", "0%")
+      .attr("x2", "100%")
+      .attr("y2", "0%");
+
+    upGradient.append("stop")
+      .attr("offset", "0%")
+      .attr("stop-color", "#000000");
+
+    upGradient.append("stop")
+      .attr("offset", "100%")
+      .attr("stop-color", "#333333");
+
+    // "Up" bar
+    g.append("rect")
+      .attr("class", "bar up")
+      .attr("x", 0)
+      .attr("y", 0)
+      .attr("height", height)
+      .attr("rx", 10)
+      .attr("ry", 10)
+      .attr("fill", "url(#up-gradient)")
+      .attr("width", width * upRatio);
+
+    // Glow effect
+    const glow = defs.append("filter")
+      .attr("id", "glow");
+
+    glow.append("feGaussianBlur")
+      .attr("stdDeviation", "3")
+      .attr("result", "coloredBlur");
+
+    const feMerge = glow.append("feMerge");
+    feMerge.append("feMergeNode")
+      .attr("in", "coloredBlur");
+    feMerge.append("feMergeNode")
+      .attr("in", "SourceGraphic");
+
+    // Text elements
+    g.append("text")
+      .attr("class", "label up")
+      .attr("x", 10)
+      .attr("y", height / 2)
+      .attr("dy", "0.35em")
+      .attr("fill", "#00ff00")
+      .attr("filter", "url(#glow)")
+      .text(`Up: ${userStats.totalUp}`);
+
+    g.append("text")
+      .attr("class", "label down")
+      .attr("x", width - 10)
+      .attr("y", height / 2)
+      .attr("dy", "0.35em")
+      .attr("text-anchor", "end")
+      .attr("fill", "#ffd700")
+      .attr("filter", "url(#glow)")
+      .text(`Down: ${userStats.totalDown}`);
+
+    svg.append("text")
+      .attr("class", "ratio-text")
+      .attr("x", width / 2 + margin.left)
+      .attr("y", height + margin.top + 25)
+      .attr("text-anchor", "middle")
+      .attr("fill", "#ffd700")
+      .attr("filter", "url(#glow)")
+      .text(`Audit Ratio: ${userStats.auditRatio.toFixed(2)}`);
+  }, [userStats]); // Add userStats as a dependency
+
   useEffect(() => {
     if (userStats) {
       createBarChart();
     }
-  }, [userStats]);
+  }, [userStats, createBarChart]);
 
   const createRadarChart = useCallback(() => {
     const svg = d3.select(skillsChartRef.current);
@@ -651,124 +773,6 @@ function App() {
       fetchTeamLeaderData();
     }
   }, [isSignedIn, userInfo, fetchLeadershipProjects, fetchTeamLeaderData]);
-
-  const createBarChart = () => {
-    const svg = d3.select(chartRef.current);
-    svg.selectAll("*").remove();
-
-    const margin = { top: 20, right: 20, bottom: 30, left: 40 };
-    const width = 300 - margin.left - margin.right;
-    const height = 100 - margin.top - margin.bottom; // Increased height
-
-    // Update SVG size
-    svg.attr("width", width + margin.left + margin.right)
-       .attr("height", height + margin.top + margin.bottom);
-
-    const g = svg.append("g")
-      .attr("transform", `translate(${margin.left},${margin.top})`);
-
-    const total = userStats.totalUp + userStats.totalDown;
-    const upRatio = userStats.totalUp / total;
-
-    const defs = svg.append("defs");
-
-    // Background gradient
-    const bgGradient = defs.append("linearGradient")
-      .attr("id", "bg-gradient")
-      .attr("x1", "0%")
-      .attr("y1", "0%")
-      .attr("x2", "100%")
-      .attr("y2", "100%");
-
-    bgGradient.append("stop")
-      .attr("offset", "0%")
-      .attr("stop-color", "#2a2a2a");
-
-    bgGradient.append("stop")
-      .attr("offset", "100%")
-      .attr("stop-color", "#1a1a1a");
-
-    // Background rectangle
-    g.append("rect")
-      .attr("class", "bar-background")
-      .attr("x", 0)
-      .attr("y", 0)
-      .attr("width", width)
-      .attr("height", height)
-      .attr("rx", 10)
-      .attr("ry", 10)
-      .attr("fill", "url(#bg-gradient)");
-
-    // "Up" bar gradient
-    const upGradient = defs.append("linearGradient")
-      .attr("id", "up-gradient")
-      .attr("x1", "0%")
-      .attr("y1", "0%")
-      .attr("x2", "100%")
-      .attr("y2", "0%");
-
-    upGradient.append("stop")
-      .attr("offset", "0%")
-      .attr("stop-color", "#000000");
-
-    upGradient.append("stop")
-      .attr("offset", "100%")
-      .attr("stop-color", "#333333");
-
-    // "Up" bar
-    g.append("rect")
-      .attr("class", "bar up")
-      .attr("x", 0)
-      .attr("y", 0)
-      .attr("height", height)
-      .attr("rx", 10)
-      .attr("ry", 10)
-      .attr("fill", "url(#up-gradient)")
-      .attr("width", width * upRatio);
-
-    // Glow effect
-    const glow = defs.append("filter")
-      .attr("id", "glow");
-
-    glow.append("feGaussianBlur")
-      .attr("stdDeviation", "3")
-      .attr("result", "coloredBlur");
-
-    const feMerge = glow.append("feMerge");
-    feMerge.append("feMergeNode")
-      .attr("in", "coloredBlur");
-    feMerge.append("feMergeNode")
-      .attr("in", "SourceGraphic");
-
-    // Text elements
-    g.append("text")
-      .attr("class", "label up")
-      .attr("x", 10)
-      .attr("y", height / 2)
-      .attr("dy", "0.35em")
-      .attr("fill", "#00ff00")
-      .attr("filter", "url(#glow)")
-      .text(`Up: ${userStats.totalUp}`);
-
-    g.append("text")
-      .attr("class", "label down")
-      .attr("x", width - 10)
-      .attr("y", height / 2)
-      .attr("dy", "0.35em")
-      .attr("text-anchor", "end")
-      .attr("fill", "#ffd700")
-      .attr("filter", "url(#glow)")
-      .text(`Down: ${userStats.totalDown}`);
-
-    svg.append("text")
-      .attr("class", "ratio-text")
-      .attr("x", width / 2 + margin.left)
-      .attr("y", height + margin.top + 25)
-      .attr("text-anchor", "middle")
-      .attr("fill", "#ffd700")
-      .attr("filter", "url(#glow)")
-      .text(`Audit Ratio: ${userStats.auditRatio.toFixed(2)}`);
-  };
 
   const getRank = (level) => {
     if (level < 5) return "Novice";
