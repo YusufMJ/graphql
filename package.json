@@ -9,6 +9,7 @@
     "eject": "react-scripts eject"
   },
   "devDependencies": {
+    "gh-pages": "^6.1.1",
     "react-scripts": "^5.0.1"
   }
 }
