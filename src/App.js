@@ -428,7 +428,7 @@ function App() {
     }
   };
 
-  const fetchLeadershipProjects = async () => {
+  const fetchLeadershipProjects = useCallback(async () => {
     try {
       const result = await queryData(queries.leadershipProjects, { userLogin: userInfo.login });
       if (result && result.data && result.data.group) {
@@ -439,9 +439,9 @@ function App() {
     } catch (error) {
       console.error('Error fetching leadership projects:', error);
     }
-  };
+  }, [queryData, queries.leadershipProjects, userInfo]);
 
-  const fetchTeamLeaderData = async () => {
+  const fetchTeamLeaderData = useCallback(async () => {
     try {
       const result = await queryData(queries.teamLeaders, { userLogin: userInfo.login });
       if (result && result.data && result.data.group) {
@@ -463,7 +463,7 @@ function App() {
     } catch (error) {
       console.error('Error fetching team leader data:', error);
     }
-  };
+  }, [queryData, queries.teamLeaders, userInfo]);
 
   useEffect(() => {
     if (isSignedIn) {
@@ -480,25 +480,177 @@ function App() {
     }
   }, [userStats]);
 
+  const createRadarChart = useCallback(() => {
+    const svg = d3.select(skillsChartRef.current);
+    svg.selectAll("*").remove(); // Clear existing chart
+
+    const container = d3.select(skillsChartRef.current.parentNode);
+    const containerWidth = container.node().getBoundingClientRect().width;
+    const containerHeight = Math.min(containerWidth, 400);
+
+    svg.attr("width", "100%")
+       .attr("height", containerHeight)
+       .attr("viewBox", `0 0 ${containerWidth} ${containerHeight}`)
+       .attr("preserveAspectRatio", "xMidYMid meet");
+
+    const margin = { top: 40, right: 50, bottom: 50, left: 50 };
+    const width = containerWidth - margin.left - margin.right;
+    const height = containerHeight - margin.top - margin.bottom;
+    const radius = Math.min(width, height) / 2;
+
+    const g = svg.append("g")
+      .attr("transform", `translate(${width / 2 + margin.left}, ${height / 2 + margin.top})`);
+
+    // Use top 10 skills
+    const data = skillsData.slice(0, 10);
+
+    const angleSlice = Math.PI * 2 / data.length;
+
+    // Scale for the radius
+    const rScale = d3.scaleLinear()
+      .range([0, radius])
+      .domain([0, d3.max(data, d => d.amount)]);
+
+    // Draw the circular grid
+    const axisGrid = g.append("g").attr("class", "axisWrapper");
+
+    axisGrid.selectAll(".levels")
+      .data(d3.range(1, 6).reverse())
+      .enter()
+      .append("circle")
+      .attr("class", "gridCircle")
+      .attr("r", d => radius / 5 * d)
+      .style("fill", "none")
+      .style("stroke", "#CDCDCD")
+      .style("stroke-width", "0.5px");
+
+    // Draw the axes
+    const axis = axisGrid.selectAll(".axis")
+      .data(data)
+      .enter()
+      .append("g")
+      .attr("class", "axis");
+
+    axis.append("line")
+      .attr("x1", 0)
+      .attr("y1", 0)
+      .attr("x2", (d, i) => rScale(d3.max(data, d => d.amount)) * Math.cos(angleSlice * i - Math.PI / 2))
+      .attr("y2", (d, i) => rScale(d3.max(data, d => d.amount)) * Math.sin(angleSlice * i - Math.PI / 2))
+      .attr("class", "line")
+      .style("stroke", "#CDCDCD")
+      .style("stroke-width", "0.5px");
+
+    // Draw the radar chart blobs
+    const radarLine = d3.lineRadial()
+      .curve(d3.curveLinearClosed)
+      .radius(d => rScale(d.amount))
+      .angle((d, i) => i * angleSlice);
+
+    g.selectAll(".radarWrapper")
+      .data([data])
+      .enter().append("g")
+      .attr("class", "radarWrapper")
+      .append("path")
+      .attr("class", "radarArea")
+      .attr("d", radarLine)
+      .style("fill", "rgb(116, 119, 191)")
+      .style("fill-opacity", 0.5)
+      .style("stroke", "rgb(116, 119, 191)")
+      .style("stroke-width", "2px");
+
+    // Append the labels
+    axis.append("text")
+      .attr("class", "legend")
+      .style("font-size", "11px")
+      .attr("text-anchor", "middle")
+      .attr("dy", "0.35em")
+      .attr("x", (d, i) => rScale(d3.max(data, d => d.amount) * 1.15) * Math.cos(angleSlice * i - Math.PI / 2))
+      .attr("y", (d, i) => rScale(d3.max(data, d => d.amount) * 1.15) * Math.sin(angleSlice * i - Math.PI / 2))
+      .text(d => d.skill)
+      .style("fill", "#CCCCCC");
+
+    // Add a title
+    svg.append("text")
+      .attr("x", containerWidth / 2)
+      .attr("y", 20)
+      .attr("text-anchor", "middle")
+      .style("font-size", "16px")
+      .style("fill", "#FFFFFF")
+  }, [skillsData]);
+
   useEffect(() => {
     console.log('skillsData updated:', skillsData);
     if (skillsData.length > 0) {
       createRadarChart();
     }
-  }, [skillsData]);
+  }, [skillsData, createRadarChart]);
+
+  const createTimelineChart = useCallback(() => {
+    const svg = d3.select(timelineChartRef.current);
+    svg.selectAll("*").remove();
+
+    const margin = { top: 20, right: 30, bottom: 30, left: 60 };
+    const width = 600 - margin.left - margin.right;
+    const height = 400 - margin.top - margin.bottom;
+
+    const g = svg.append("g")
+      .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    const x = d3.scaleTime()
+      .domain(d3.extent(timelineData, d => d.date))
+      .range([0, width]);
+
+    const y = d3.scaleLinear()
+      .domain([0, d3.max(timelineData, d => d.amount)])
+      .range([height, 0]);
+
+    const line = d3.line()
+      .x(d => x(d.date))
+      .y(d => y(d.amount));
+
+    g.append("path")
+      .datum(timelineData)
+      .attr("fill", "none")
+      .attr("stroke", "var(--accent)")
+      .attr("stroke-width", 1.5)
+      .attr("d", line);
+
+    g.append("g")
+      .attr("transform", `translate(0,${height})`)
+      .call(d3.axisBottom(x));
+
+    g.append("g")
+      .call(d3.axisLeft(y));
+
+    g.append("text")
+      .attr("x", width / 2)
+      .attr("y", height + margin.bottom)
+      .attr("text-anchor", "middle")
+      .text("Date")
+      .style("fill", "var(--text-primary)");
+
+    g.append("text")
+      .attr("transform", "rotate(-90)")
+      .attr("y", 0 - margin.left)
+      .attr("x", 0 - (height / 2))
+      .attr("dy", "1em")
+      .attr("text-anchor", "middle")
+      .text("XP")
+      .style("fill", "var(--text-primary)");
+  }, [timelineData]);
 
   useEffect(() => {
     if (timelineData.length > 0) {
       createTimelineChart();
     }
-  }, [timelineData]);
+  }, [timelineData, createTimelineChart]);
 
   useEffect(() => {
     if (isSignedIn && userInfo) {
       fetchLeadershipProjects();
       fetchTeamLeaderData();
     }
-  }, [isSignedIn, userInfo]);
+  }, [isSignedIn, userInfo, fetchLeadershipProjects, fetchTeamLeaderData]);
 
   const createBarChart = () => {
     const svg = d3.select(chartRef.current);
@@ -616,158 +768,6 @@ function App() {
       .attr("fill", "#ffd700")
       .attr("filter", "url(#glow)")
       .text(`Audit Ratio: ${userStats.auditRatio.toFixed(2)}`);
-  };
-
-  const createRadarChart = () => {
-    const svg = d3.select(skillsChartRef.current);
-    svg.selectAll("*").remove(); // Clear existing chart
-
-    const container = d3.select(skillsChartRef.current.parentNode);
-    const containerWidth = container.node().getBoundingClientRect().width;
-    const containerHeight = Math.min(containerWidth, 400);
-
-    svg.attr("width", "100%")
-       .attr("height", containerHeight)
-       .attr("viewBox", `0 0 ${containerWidth} ${containerHeight}`)
-       .attr("preserveAspectRatio", "xMidYMid meet");
-
-    const margin = { top: 40, right: 50, bottom: 50, left: 50 };
-    const width = containerWidth - margin.left - margin.right;
-    const height = containerHeight - margin.top - margin.bottom;
-    const radius = Math.min(width, height) / 2;
-
-    const g = svg.append("g")
-      .attr("transform", `translate(${width / 2 + margin.left}, ${height / 2 + margin.top})`);
-
-    // Use top 10 skills
-    const data = skillsData.slice(0, 10);
-
-    const angleSlice = Math.PI * 2 / data.length;
-
-    // Scale for the radius
-    const rScale = d3.scaleLinear()
-      .range([0, radius])
-      .domain([0, d3.max(data, d => d.amount)]);
-
-    // Draw the circular grid
-    const axisGrid = g.append("g").attr("class", "axisWrapper");
-
-    axisGrid.selectAll(".levels")
-      .data(d3.range(1, 6).reverse())
-      .enter()
-      .append("circle")
-      .attr("class", "gridCircle")
-      .attr("r", d => radius / 5 * d)
-      .style("fill", "none")
-      .style("stroke", "#CDCDCD")
-      .style("stroke-width", "0.5px");
-
-    // Draw the axes
-    const axis = axisGrid.selectAll(".axis")
-      .data(data)
-      .enter()
-      .append("g")
-      .attr("class", "axis");
-
-    axis.append("line")
-      .attr("x1", 0)
-      .attr("y1", 0)
-      .attr("x2", (d, i) => rScale(d3.max(data, d => d.amount)) * Math.cos(angleSlice * i - Math.PI / 2))
-      .attr("y2", (d, i) => rScale(d3.max(data, d => d.amount)) * Math.sin(angleSlice * i - Math.PI / 2))
-      .attr("class", "line")
-      .style("stroke", "#CDCDCD")
-      .style("stroke-width", "0.5px");
-
-    // Draw the radar chart blobs
-    const radarLine = d3.lineRadial()
-      .curve(d3.curveLinearClosed)
-      .radius(d => rScale(d.amount))
-      .angle((d, i) => i * angleSlice);
-
-    g.selectAll(".radarWrapper")
-      .data([data])
-      .enter().append("g")
-      .attr("class", "radarWrapper")
-      .append("path")
-      .attr("class", "radarArea")
-      .attr("d", radarLine)
-      .style("fill", "rgb(116, 119, 191)")
-      .style("fill-opacity", 0.5)
-      .style("stroke", "rgb(116, 119, 191)")
-      .style("stroke-width", "2px");
-
-    // Append the labels
-    axis.append("text")
-      .attr("class", "legend")
-      .style("font-size", "11px")
-      .attr("text-anchor", "middle")
-      .attr("dy", "0.35em")
-      .attr("x", (d, i) => rScale(d3.max(data, d => d.amount) * 1.15) * Math.cos(angleSlice * i - Math.PI / 2))
-      .attr("y", (d, i) => rScale(d3.max(data, d => d.amount) * 1.15) * Math.sin(angleSlice * i - Math.PI / 2))
-      .text(d => d.skill)
-      .style("fill", "#CCCCCC");
-
-    // Add a title
-    svg.append("text")
-      .attr("x", containerWidth / 2)
-      .attr("y", 20)
-      .attr("text-anchor", "middle")
-      .style("font-size", "16px")
-      .style("fill", "#FFFFFF")
-  };
-
-  const createTimelineChart = () => {
-    const svg = d3.select(timelineChartRef.current);
-    svg.selectAll("*").remove();
-
-    const margin = { top: 20, right: 30, bottom: 30, left: 60 };
-    const width = 600 - margin.left - margin.right;
-    const height = 400 - margin.top - margin.bottom;
-
-    const g = svg.append("g")
-      .attr("transform", `translate(${margin.left},${margin.top})`);
-
-    const x = d3.scaleTime()
-      .domain(d3.extent(timelineData, d => d.date))
-      .range([0, width]);
-
-    const y = d3.scaleLinear()
-      .domain([0, d3.max(timelineData, d => d.amount)])
-      .range([height, 0]);
-
-    const line = d3.line()
-      .x(d => x(d.date))
-      .y(d => y(d.amount));
-
-    g.append("path")
-      .datum(timelineData)
-      .attr("fill", "none")
-      .attr("stroke", "var(--accent)")
-      .attr("stroke-width", 1.5)
-      .attr("d", line);
-
-    g.append("g")
-      .attr("transform", `translate(0,${height})`)
-      .call(d3.axisBottom(x));
-
-    g.append("g")
-      .call(d3.axisLeft(y));
-
-    g.append("text")
-      .attr("x", width / 2)
-      .attr("y", height + margin.bottom)
-      .attr("text-anchor", "middle")
-      .text("Date")
-      .style("fill", "var(--text-primary)");
-
-    g.append("text")
-      .attr("transform", "rotate(-90)")
-      .attr("y", 0 - margin.left)
-      .attr("x", 0 - (height / 2))
-      .attr("dy", "1em")
-      .attr("text-anchor", "middle")
-      .text("XP")
-      .style("fill", "var(--text-primary)");
   };
 
   const getRank = (level) => {
