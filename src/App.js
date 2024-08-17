@@ -60,7 +60,7 @@ function App() {
       }
     }`,
     skillsDistribution: `
-      query Transaction2 {
+      query skills {
         transaction(
           where: {
             type: {
@@ -300,7 +300,8 @@ function App() {
     if (result && result.data && result.data.transaction) {
       const skillsMap = result.data.transaction.reduce((acc, item) => {
         const skill = item.type.replace(/^skill_/, '');
-        acc[skill] = (acc[skill] || 0) + item.amount;
+        // Use Math.max to keep the highest amount for each skill
+        acc[skill] = Math.max(acc[skill] || 0, item.amount);
         return acc;
       }, {});
 
@@ -308,7 +309,7 @@ function App() {
         .map(([skill, amount]) => ({ skill, amount }))
         .sort((a, b) => b.amount - a.amount);
 
-      console.log('Processed and aggregated skills data:', processedData);
+      console.log('Processed skills data with maximum values:', processedData);
       setSkillsData(processedData);
     } else {
       console.log('No transaction data found in the query result');
@@ -411,6 +412,7 @@ function App() {
     try {
       const result = await queryData(query, variables);
       if (result && result.data && result.data.event_user) {
+        console.log(`Fetched ${result.data.event_user.length} users above`);
         if (inCohort) {
           setUsersAboveInCohortList(result.data.event_user);
           setShowUsersAboveInCohort(true);
@@ -481,7 +483,7 @@ function App() {
   useEffect(() => {
     console.log('skillsData updated:', skillsData);
     if (skillsData.length > 0) {
-      createRadialChart();
+      createRadarChart();
     }
   }, [skillsData]);
 
@@ -587,99 +589,103 @@ function App() {
       .text(`Audit Ratio: ${userStats.auditRatio.toFixed(2)}`);
   };
 
-  const createRadialChart = () => {
-    console.log('Creating radial chart with data:', skillsData);
-    
+  const createRadarChart = () => {
     const svg = d3.select(skillsChartRef.current);
-    if (!svg.node()) {
-      console.error('SVG element not found');
-      return;
-    }
-    
     svg.selectAll("*").remove(); // Clear existing chart
 
-    const width = 600;
-    const height = 400;
-    const margin = 40;
-    const legendWidth = 200;
+    const container = d3.select(skillsChartRef.current.parentNode);
+    const containerWidth = container.node().getBoundingClientRect().width;
+    const containerHeight = Math.min(containerWidth, 400);
 
-    const radius = Math.min(width - legendWidth, height) / 2 - margin;
+    svg.attr("width", "100%")
+       .attr("height", containerHeight)
+       .attr("viewBox", `0 0 ${containerWidth} ${containerHeight}`)
+       .attr("preserveAspectRatio", "xMidYMid meet");
+
+    const margin = { top: 70, right: 50, bottom: 50, left: 50 }; // Increased top margin
+    const width = containerWidth - margin.left - margin.right;
+    const height = containerHeight - margin.top - margin.bottom;
+    const radius = Math.min(width, height) / 2;
 
     const g = svg.append("g")
-      .attr("transform", `translate(${(width - legendWidth) / 2},${height / 2})`);
+      .attr("transform", `translate(${width / 2 + margin.left}, ${height / 2 + margin.top})`);
 
-    const color = d3.scaleOrdinal(d3.schemeCategory10);
+    // Use top 10 skills
+    const data = skillsData.slice(0, 10);
 
-    // Use only top 10 skills for better readability
-    const topSkills = skillsData.slice(0, 10);
-    console.log('Top 10 skills:', topSkills);
+    const angleSlice = Math.PI * 2 / data.length;
 
-    const pie = d3.pie()
-      .value(d => d.amount)
-      .sort(null);
+    // Scale for the radius
+    const rScale = d3.scaleLinear()
+      .range([0, radius])
+      .domain([0, d3.max(data, d => d.amount)]);
 
-    const arc = d3.arc()
-      .outerRadius(radius * 0.8)
-      .innerRadius(radius * 0.4);
+    // Draw the circular grid
+    const axisGrid = g.append("g").attr("class", "axisWrapper");
 
-    const slice = g.selectAll(".arc")
-      .data(pie(topSkills))
+    axisGrid.selectAll(".levels")
+      .data(d3.range(1, 6).reverse())
+      .enter()
+      .append("circle")
+      .attr("class", "gridCircle")
+      .attr("r", d => radius / 5 * d)
+      .style("fill", "none")
+      .style("stroke", "#CDCDCD")
+      .style("stroke-width", "0.5px");
+
+    // Draw the axes
+    const axis = axisGrid.selectAll(".axis")
+      .data(data)
+      .enter()
+      .append("g")
+      .attr("class", "axis");
+
+    axis.append("line")
+      .attr("x1", 0)
+      .attr("y1", 0)
+      .attr("x2", (d, i) => rScale(d3.max(data, d => d.amount)) * Math.cos(angleSlice * i - Math.PI / 2))
+      .attr("y2", (d, i) => rScale(d3.max(data, d => d.amount)) * Math.sin(angleSlice * i - Math.PI / 2))
+      .attr("class", "line")
+      .style("stroke", "#CDCDCD")
+      .style("stroke-width", "0.5px");
+
+    // Draw the radar chart blobs
+    const radarLine = d3.lineRadial()
+      .curve(d3.curveLinearClosed)
+      .radius(d => rScale(d.amount))
+      .angle((d, i) => i * angleSlice);
+
+    g.selectAll(".radarWrapper")
+      .data([data])
       .enter().append("g")
-      .attr("class", "arc");
+      .attr("class", "radarWrapper")
+      .append("path")
+      .attr("class", "radarArea")
+      .attr("d", radarLine)
+      .style("fill", "rgb(116, 119, 191)")
+      .style("fill-opacity", 0.5)
+      .style("stroke", "rgb(116, 119, 191)")
+      .style("stroke-width", "2px");
 
-    slice.append("path")
-      .attr("d", arc)
-      .attr("fill", d => color(d.data.skill))
-      .attr("stroke", "var(--primary-bg)")
-      .attr("stroke-width", "1px")
-      .style("opacity", 0.7)
-      .on("mouseover", function() {
-        d3.select(this).style("opacity", 1);
-      })
-      .on("mouseout", function() {
-        d3.select(this).style("opacity", 0.7);
-      });
-
-    // Add legend
-    const legend = svg.append("g")
-      .attr("transform", `translate(${width - legendWidth}, 20)`);
-
-    const legendItems = legend.selectAll(".legend-item")
-      .data(topSkills)
-      .enter().append("g")
-      .attr("class", "legend-item")
-      .attr("transform", (d, i) => `translate(0, ${i * 25})`)
-      .style("cursor", "pointer")
-      .on("click", function(event, d) {
-        const opacity = slice.select(`path[fill="${color(d.skill)}"]`).style("opacity");
-        slice.select(`path[fill="${color(d.skill)}"]`)
-          .style("opacity", opacity == 1 ? 0.7 : 1);
-        d3.select(this).style("opacity", opacity == 1 ? 0.7 : 1);
-      });
-
-    legendItems.append("rect")
-      .attr("width", 18)
-      .attr("height", 18)
-      .attr("fill", d => color(d.skill));
-
-    legendItems.append("text")
-      .attr("x", 24)
-      .attr("y", 9)
-      .attr("dy", ".35em")
-      .text(d => `${d.skill} (${d.amount})`)
-      .style("fill", "var(--text-primary)")
-      .style("font-size", "12px");
-
-    console.log('Legend items created:', legendItems.size());
-
-    // Add total skills amount
-    const totalAmount = topSkills.reduce((sum, skill) => sum + skill.amount, 0);
-    g.append("text")
+    // Append the labels
+    axis.append("text")
+      .attr("class", "legend")
+      .style("font-size", "11px")
       .attr("text-anchor", "middle")
-      .attr("dy", ".35em")
-      .text(`Total: ${totalAmount}`)
-      .style("fill", "var(--text-primary)")
-      .style("font-size", "16px");
+      .attr("dy", "0.35em")
+      .attr("x", (d, i) => rScale(d3.max(data, d => d.amount) * 1.15) * Math.cos(angleSlice * i - Math.PI / 2))
+      .attr("y", (d, i) => rScale(d3.max(data, d => d.amount) * 1.15) * Math.sin(angleSlice * i - Math.PI / 2))
+      .text(d => d.skill)
+      .style("fill", "#CCCCCC");
+
+    // Add a title with more space below
+    svg.append("text")
+      .attr("x", containerWidth / 2)
+      .attr("y", 30)
+      .attr("text-anchor", "middle")
+      .style("font-size", "16px")
+      .style("fill", "#FFFFFF")
+      .text("Technologies");
   };
 
   const createTimelineChart = () => {
@@ -851,8 +857,9 @@ function App() {
               <svg ref={chartRef} width="300" height="100"></svg>
             </div>
             <div className="section">
-              <div className="title">Skills Distribution</div>
-              <svg ref={skillsChartRef} width="600" height="400"></svg>
+              <div className="chart-container">
+                <svg ref={skillsChartRef}></svg>
+              </div>
             </div>
             <div className="section">
               <div className="title">XP Timeline</div>
@@ -865,17 +872,23 @@ function App() {
                 <button onClick={() => {
                   setShowUsersAbove(!showUsersAbove);
                   if (!showUsersAbove && usersAboveList.length === 0) {
+                    console.log('Fetching users above');
                     fetchUsersAbove(false);
                   }
                 }}>
                   {showUsersAbove ? 'Hide users above you' : 'Want to see who is above you?'}
                 </button>
                 {showUsersAbove && (
-                  <ul className={showUsersAbove ? 'show' : ''}>
-                    {usersAboveList.map((user, index) => (
-                      <li key={user.userLogin}>{user.userLogin} - Level {user.level}</li>
-                    ))}
-                  </ul>
+                  <>
+                    <p>Total users above you: {usersAboveList.length}</p>
+                    <div className="users-list-container">
+                      <ul className={showUsersAbove ? 'show users-list' : 'users-list'}>
+                        {usersAboveList.map((user, index) => (
+                          <li key={user.userLogin}>{index + 1}. {user.userLogin} - Level {user.level}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </>
                 )}
               </div>
               <div className="info">

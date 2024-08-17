@@ -5,6 +5,8 @@
   --text-primary: #FFD700;
   --text-secondary: #CCCCCC;
   --hover-color: #B8860B;
+  --border-color: #444444;
+  --accent-hover: #FFC107;
 }
 
 /* General styles */
@@ -127,6 +129,54 @@ main {
   color: var(--text-secondary);
 }
 
+.users-list-container {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.users-list {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+.users-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.users-list li:last-child {
+  border-bottom: none;
+}
+
+/* Webkit browsers like Chrome, Safari */
+.users-list-container::-webkit-scrollbar {
+  width: 10px;
+}
+
+.users-list-container::-webkit-scrollbar-track {
+  background: var(--primary-bg);
+  border-radius: 5px;
+}
+
+.users-list-container::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 5px;
+}
+
+.users-list-container::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-hover);
+}
+
+/* Firefox */
+.users-list-container {
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) var(--primary-bg);
+}
+
 /* Footer styles */
 footer {
   text-align: center;
@@ -230,4 +280,26 @@ footer {
 .info ul.show {
   max-height: 1000px;
   transition: max-height 0.5s ease-in;
+}
+
+/* Chart container styles */
+.chart-container {
+  background-color: #1a1a1a;
+  border-radius: 10px;
+  padding: 20px;
+  margin-top: 20px;
+}
+
+.gridCircle {
+  fill: none;
+  stroke: #CDCDCD;
+}
+
+.axis {
+  stroke: #CDCDCD;
+  stroke-width: 0.5px;
+}
+
+.legend {
+  fill: #CCCCCC;
 }
