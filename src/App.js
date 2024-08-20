@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as d3 from 'd3';
 import './App.css';
-import { useSpring, animated } from 'react-spring';
 
 function App() {
   const [jwt, setJwt] = useState("");
@@ -10,8 +9,6 @@ function App() {
   const [userXP, setUserXP] = useState(null);
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [headerMessage, setHeaderMessage] = useState("Please trust me and use your reboot credentials thank you");
-  const [userStats, setUserStats] = useState(null);
-  const chartRef = useRef(null);
   const [skillsData, setSkillsData] = useState([]);
   const skillsChartRef = useRef(null);
   const [usersAboveLevel, setUsersAboveLevel] = useState(null);
@@ -28,7 +25,12 @@ function App() {
   const [teamLeaderProjects, setTeamLeaderProjects] = useState([]);
   const [showTeamLeaderProjects, setShowTeamLeaderProjects] = useState(false);
   const [mostFrequentLeader, setMostFrequentLeader] = useState(null);
-  const [hoveredBar, setHoveredBar] = useState(null);
+  const [auditRatioRanking, setAuditRatioRanking] = useState([]);
+  const [cohortAuditRatioRanking, setCohortAuditRatioRanking] = useState([]);
+  const [showAuditRatioRanking, setShowAuditRatioRanking] = useState(false);
+  const [showCohortAuditRatioRanking, setShowCohortAuditRatioRanking] = useState(false);
+  const [userAuditRatioRank, setUserAuditRatioRank] = useState(null);
+  const [userCohortAuditRatioRank, setUserCohortAuditRatioRank] = useState(null);
 
   const queries = {
     basicInformation: `query User1 {
@@ -188,6 +190,27 @@ function App() {
           }
         }
       }
+    `,
+    usersLevelGreaterThanInAll: `
+      query UsersLevelGreaterThanInAll($level: Int!) {
+        event_user(
+          where: { 
+            event: { 
+              path: { _eq: "/bahrain/bh-module" }
+            },
+            level: { _gte: $level }
+          }
+          order_by: { level: desc }
+        ) {
+          userLogin
+          level
+          event {
+            campus
+            id
+          }
+          userAuditRatio
+        }
+      }
     `
   };
 
@@ -253,17 +276,8 @@ function App() {
     }
   }, [jwt]);
 
-  const fetchUserStats = useCallback(async () => {
-    const result = await queryData(queries.basicInformation);
-    if (result && result.data && result.data.user && result.data.user[0]) {
-      setUserStats(result.data.user[0]);
-    }
-  }, [queryData, queries.basicInformation]);
-
-  const { skillsDistribution } = queries; // Destructure the specific query
-
   const fetchSkillsData = useCallback(async () => {
-    const result = await queryData(skillsDistribution);
+    const result = await queryData(queries.skillsDistribution);
     console.log('Raw query result:', result);
     
     if (result && result.data && result.data.transaction) {
@@ -284,7 +298,7 @@ function App() {
       console.log('No transaction data found in the query result');
       setSkillsData([]);
     }
-  }, [queryData, skillsDistribution]); // Add skillsDistribution to the dependency array
+  }, [queryData, queries.skillsDistribution]);
 
   const fetchUserData = useCallback(async () => {
     try {
@@ -422,161 +436,46 @@ function App() {
     }
   }, [queryData, queries.teamLeaders, userInfo]);
 
+  const fetchAuditRatioRankings = useCallback(async (inCohort = false) => {
+    try {
+      const result = await queryData(queries.usersLevelGreaterThanInAll, { level: 0 });
+      if (result && result.data && result.data.event_user) {
+        const sortedUsers = result.data.event_user
+          .sort((a, b) => {
+            const ratioA = parseFloat(a.userAuditRatio) || 0;
+            const ratioB = parseFloat(b.userAuditRatio) || 0;
+            return ratioB - ratioA;
+          });
+        
+        const userRank = sortedUsers.findIndex(user => user.userLogin === userInfo.login) + 1;
+        setUserAuditRatioRank(userRank);
+
+        if (inCohort) {
+          const cohortUsers = sortedUsers.filter(user => user.event.id === cohort);
+          setCohortAuditRatioRanking(cohortUsers);
+          const userCohortRank = cohortUsers.findIndex(user => user.userLogin === userInfo.login) + 1;
+          setUserCohortAuditRatioRank(userCohortRank);
+        } else {
+          setAuditRatioRanking(sortedUsers);
+        }
+      } else {
+        console.error('Failed to fetch audit ratio rankings');
+      }
+    } catch (error) {
+      console.error('Error fetching audit ratio rankings:', error);
+    }
+  }, [queryData, queries.usersLevelGreaterThanInAll, cohort, userInfo]);
+
   useEffect(() => {
     if (isSignedIn) {
-      fetchUserStats();
       fetchSkillsData();
       fetchUserData();
     }
-  }, [isSignedIn, fetchUserStats, fetchSkillsData, fetchUserData]);
-
-  const createBarChart = useCallback(() => {
-    const svg = d3.select(chartRef.current);
-    svg.selectAll("*").remove();
-
-    const margin = { top: 20, right: 20, bottom: 30, left: 40 };
-    const width = 300 - margin.left - margin.right;
-    const height = 100 - margin.top - margin.bottom; // Increased height
-
-    // Update SVG size
-    svg.attr("width", width + margin.left + margin.right)
-       .attr("height", height + margin.top + margin.bottom);
-
-    const g = svg.append("g")
-      .attr("transform", `translate(${margin.left},${margin.top})`);
-
-    const total = userStats.totalUp + userStats.totalDown;
-    const upRatio = userStats.totalUp / total;
-
-    const defs = svg.append("defs");
-
-    // Background gradient
-    const bgGradient = defs.append("linearGradient")
-      .attr("id", "bg-gradient")
-      .attr("x1", "0%")
-      .attr("y1", "0%")
-      .attr("x2", "100%")
-      .attr("y2", "100%");
-
-    bgGradient.append("stop")
-      .attr("offset", "0%")
-      .attr("stop-color", "#2a2a2a");
-
-    bgGradient.append("stop")
-      .attr("offset", "100%")
-      .attr("stop-color", "#1a1a1a");
-
-    // Background rectangle
-    g.append("rect")
-      .attr("class", "bar-background")
-      .attr("x", 0)
-      .attr("y", 0)
-      .attr("width", width)
-      .attr("height", height)
-      .attr("rx", 10)
-      .attr("ry", 10)
-      .attr("fill", "url(#bg-gradient)");
-
-    // "Up" bar gradient
-    const upGradient = defs.append("linearGradient")
-      .attr("id", "up-gradient")
-      .attr("x1", "0%")
-      .attr("y1", "0%")
-      .attr("x2", "100%")
-      .attr("y2", "0%");
-
-    upGradient.append("stop")
-      .attr("offset", "0%")
-      .attr("stop-color", "#000000");
-
-    upGradient.append("stop")
-      .attr("offset", "100%")
-      .attr("stop-color", "#333333");
-
-    // "Up" bar
-    g.append("rect")
-      .attr("class", "bar up")
-      .attr("x", 0)
-      .attr("y", 0)
-      .attr("height", height)
-      .attr("rx", 10)
-      .attr("ry", 10)
-      .attr("fill", "url(#up-gradient)")
-      .attr("width", width * upRatio);
-
-    // Glow effect
-    const glow = defs.append("filter")
-      .attr("id", "glow");
-
-    glow.append("feGaussianBlur")
-      .attr("stdDeviation", "3")
-      .attr("result", "coloredBlur");
-
-    const feMerge = glow.append("feMerge");
-    feMerge.append("feMergeNode")
-      .attr("in", "coloredBlur");
-    feMerge.append("feMergeNode")
-      .attr("in", "SourceGraphic");
-
-    // Text elements
-    g.append("text")
-      .attr("class", "label up")
-      .attr("x", 10)
-      .attr("y", height / 2)
-      .attr("dy", "0.35em")
-      .attr("fill", "#00ff00")
-      .attr("filter", "url(#glow)")
-      .text(`Up: ${userStats.totalUp}`);
-
-    g.append("text")
-      .attr("class", "label down")
-      .attr("x", width - 10)
-      .attr("y", height / 2)
-      .attr("dy", "0.35em")
-      .attr("text-anchor", "end")
-      .attr("fill", "#ffd700")
-      .attr("filter", "url(#glow)")
-      .text(`Down: ${userStats.totalDown}`);
-
-    svg.append("text")
-      .attr("class", "ratio-text")
-      .attr("x", width / 2 + margin.left)
-      .attr("y", height + margin.top + 25)
-      .attr("text-anchor", "middle")
-      .attr("fill", "#ffd700")
-      .attr("filter", "url(#glow)")
-      .text(`Audit Ratio: ${userStats.auditRatio.toFixed(2)}`);
-
-    // Add interactivity
-    g.selectAll(".bar")
-      .on("mouseover", (event, d) => {
-        setHoveredBar(d === "up" ? "Up" : "Down");
-        d3.select(event.currentTarget).attr("opacity", 0.7);
-      })
-      .on("mouseout", (event) => {
-        setHoveredBar(null);
-        d3.select(event.currentTarget).attr("opacity", 1);
-      })
-      .on("click", (event, d) => {
-        alert(`You clicked on the ${d === "up" ? "Up" : "Down"} bar!`);
-      });
-  }, [userStats]); // Add userStats as a dependency
-
-  const barAnimation = useSpring({
-    from: { opacity: 0, transform: 'scale(0.9)' },
-    to: { opacity: 1, transform: 'scale(1)' },
-    config: { duration: 300 },
-  });
-
-  useEffect(() => {
-    if (userStats) {
-      createBarChart();
-    }
-  }, [userStats, createBarChart]);
+  }, [isSignedIn, fetchSkillsData, fetchUserData]);
 
   const createRadarChart = useCallback(() => {
     const svg = d3.select(skillsChartRef.current);
-    svg.selectAll("*").remove(); // Clear existing chart
+    svg.selectAll("*").remove();
 
     const container = d3.select(skillsChartRef.current.parentNode);
     const containerWidth = container.node().getBoundingClientRect().width;
@@ -590,17 +489,14 @@ function App() {
     const margin = { top: 40, right: 50, bottom: 50, left: 50 };
     const width = containerWidth - margin.left - margin.right;
     const height = containerHeight - margin.top - margin.bottom;
-    const radius = Math.min(width, height) / 2;
+    const radius = Math.min(width, height) / 2 * 0.8;
 
     const g = svg.append("g")
-      .attr("transform", `translate(${width / 2 + margin.left}, ${height / 2 + margin.top})`);
+      .attr("transform", `translate(${containerWidth / 2}, ${containerHeight / 2})`);
 
-    // Use top 10 skills
     const data = skillsData.slice(0, 10);
-
     const angleSlice = Math.PI * 2 / data.length;
 
-    // Scale for the radius
     const rScale = d3.scaleLinear()
       .range([0, radius])
       .domain([0, d3.max(data, d => d.amount)]);
@@ -652,7 +548,7 @@ function App() {
       .style("stroke", "rgb(116, 119, 191)")
       .style("stroke-width", "2px");
 
-    // Append the labels
+    // Append the labels and interactive circles
     axis.append("text")
       .attr("class", "legend")
       .style("font-size", "11px")
@@ -663,6 +559,42 @@ function App() {
       .text(d => d.skill)
       .style("fill", "#CCCCCC");
 
+    // Add interactive circles
+    axis.append("circle")
+      .attr("class", "radarCircle")
+      .attr("r", 5)
+      .attr("cx", (d, i) => rScale(d.amount) * Math.cos(angleSlice * i - Math.PI / 2))
+      .attr("cy", (d, i) => rScale(d.amount) * Math.sin(angleSlice * i - Math.PI / 2))
+      .style("fill", "rgb(116, 119, 191)")
+      .style("fill-opacity", 0.8)
+      .style("stroke", "#fff")
+      .style("stroke-width", "2px")
+      .on("mouseover", function(event, d) {
+        d3.select(this)
+          .transition()
+          .duration(200)
+          .attr("r", 8)
+          .style("fill", "rgb(255, 215, 0)");
+        
+        // Show tooltip
+        const [x, y] = d3.pointer(event, svg.node());
+        d3.select(".tooltip")
+          .style("opacity", 1)
+          .html(`${d.skill}: ${d.amount}`)
+          .style("left", `${x + 10}px`)
+          .style("top", `${y - 10}px`);
+      })
+      .on("mouseout", function() {
+        d3.select(this)
+          .transition()
+          .duration(200)
+          .attr("r", 5)
+          .style("fill", "rgb(116, 119, 191)");
+        
+        // Hide tooltip
+        d3.select(".tooltip").style("opacity", 0);
+      });
+
     // Add a title
     svg.append("text")
       .attr("x", containerWidth / 2)
@@ -670,10 +602,18 @@ function App() {
       .attr("text-anchor", "middle")
       .style("font-size", "16px")
       .style("fill", "#FFFFFF")
+      .text("Top 10 Skills");
+
+    // Add tooltip div if it doesn't exist
+    if (d3.select(".tooltip").empty()) {
+      d3.select("body").append("div")
+        .attr("class", "tooltip")
+        .style("opacity", 0);
+    }
+
   }, [skillsData]);
 
   useEffect(() => {
-    console.log('skillsData updated:', skillsData);
     if (skillsData.length > 0) {
       createRadarChart();
     }
@@ -707,6 +647,10 @@ function App() {
     }
   };
 
+  const formatAuditRatio = (ratio) => {
+    return typeof ratio === 'number' ? ratio.toFixed(2) : ratio;
+  };
+
   return (
     <div className="container">
       <header>{headerMessage}</header>
@@ -732,7 +676,7 @@ function App() {
                   </div>
                   <div className="info">
                     <p>Total XP: {userXP}</p>
-                    <p>Audit Ratio: {userInfo.auditRatio.toFixed(2)}</p>
+                    <p>Audit Ratio: {formatAuditRatio(userInfo.auditRatio)}</p>
                     <p>Total Up: {userInfo.totalUp}</p>
                     <p>Total Down: {userInfo.totalDown}</p>
                     <p>You are top {usersAboveLevel + 1} in all of Reboot01</p>
@@ -801,17 +745,6 @@ function App() {
               </div>
             </div>
             <div className="section">
-              <div className="title">Audit Ratio</div>
-              <animated.div style={barAnimation}>
-                <svg ref={chartRef} width="300" height="100"></svg>
-                {hoveredBar && (
-                  <div className="tooltip">
-                    {hoveredBar}: {hoveredBar === "Up" ? userStats.totalUp : userStats.totalDown}
-                  </div>
-                )}
-              </animated.div>
-            </div>
-            <div className="section">
               <div className="title">Top 10 Skills</div>
               <div className="section-content">
                 <div className="chart-container">
@@ -870,6 +803,63 @@ function App() {
                 )}
               </div>
             </div>
+            <div className="section">
+              <div className="title">Audit Ratio Ranking</div>
+              <div className="info">
+                <p>Your Audit Ratio: {formatAuditRatio(userInfo?.auditRatio)}</p>
+                <p>You are in Cohort {getCohortNumber(cohort)}</p>
+                {userAuditRatioRank && <p>Your Audit Ratio Rank: {userAuditRatioRank} out of {auditRatioRanking.length}</p>}
+                <button onClick={() => {
+                  setShowAuditRatioRanking(!showAuditRatioRanking);
+                  if (!showAuditRatioRanking && auditRatioRanking.length === 0) {
+                    fetchAuditRatioRankings(false);
+                  }
+                }}>
+                  {showAuditRatioRanking ? 'Hide Audit Ratio Ranking' : 'Show Audit Ratio Ranking'}
+                </button>
+                {showAuditRatioRanking && (
+                  <div className="users-list-container">
+                    <ul className="show users-list">
+                      {auditRatioRanking.map((user, index) => (
+                        <li key={user.userLogin}>
+                          {index + 1}. {user.userLogin} (Cohort {getCohortNumber(user.event.id)}) - Audit Ratio: {formatAuditRatio(user.userAuditRatio)} 
+                          {user.userLogin === userInfo.login && " (You)"}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="section">
+              <div className="title">Cohort Audit Ratio Ranking</div>
+              <div className="info">
+                <p>Your Cohort: {getCohortNumber(cohort)}</p>
+                {userCohortAuditRatioRank && <p>Your Cohort Audit Ratio Rank: {userCohortAuditRatioRank} out of {cohortAuditRatioRanking.length}</p>}
+                <button onClick={() => {
+                  setShowCohortAuditRatioRanking(!showCohortAuditRatioRanking);
+                  if (!showCohortAuditRatioRanking && cohortAuditRatioRanking.length === 0) {
+                    fetchAuditRatioRankings(true);
+                  }
+                }}>
+                  {showCohortAuditRatioRanking ? 'Hide Cohort Audit Ratio Ranking' : 'Show Cohort Audit Ratio Ranking'}
+                </button>
+                {showCohortAuditRatioRanking && (
+                  <div className="users-list-container">
+                    <ul className="show users-list">
+                      {cohortAuditRatioRanking.map((user, index) => (
+                        <li key={user.userLogin}>
+                          {index + 1}. {user.userLogin} - Audit Ratio: {formatAuditRatio(user.userAuditRatio)} 
+                          {user.userLogin === userInfo.login && " (You)"}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+
           </div>
         )}
       </main>
